@@ -1,0 +1,9 @@
+# Core LangChain and LLM components
+langchain
+langchain-community
+ollama
+pydantic
+
+# Notebook and Data Handling
+jupyter
+pandas
