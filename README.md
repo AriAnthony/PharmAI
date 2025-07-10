@@ -1,59 +1,129 @@
 # PharmAI: AI-Powered Pharmacometric Analysis
 
-PharmAI demonstrates how to build a secure, reliable AI agent for pharmacometric analysis. It transforms natural language tasks into auditable, executable R scripts, bridging the gap between cutting-edge AI and the rigorous demands of pharmaceutical science.
+PharmAI is a modular AI workflow system for pharmacometric analysis, featuring a custom MCP server and orchestrator agent for automating complex analytical tasks.
 
-**🚀 Try the interactive demo: [getting_started/pharmacometric_ai_demo.ipynb](./getting_started/pharmacometric_ai_demo.ipynb)**
+## Project Overview
 
-From a simple prompt to a complete, validated analysis
+- **Modular Architecture**: Central orchestrator agent (Claude Code) with custom MCP server for pharmacometric tasks
+- **MCP Server**: Built with FastMCP, handles analysis plan parsing, pharmpy/nlmixr2/nonmem documentation, report generation
+- **Workflow Templates**: Encapsulated as MCP prompts for common tasks (exploratory analysis, PopPK analysis, end-to-end workflows)
+- **Evaluation Framework**: Comprehensive testing using regulatory templates and published reports
 
-## Why This Matters for Pharma
+## Quick Setup
 
-This isn't just another AI demo. It's a blueprint for building production-grade AI tools that meet the industry's core needs:
+### Prerequisites
+- [uv](https://docs.astral.sh/uv/) for Python package management
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI tool
 
-*   🔒 **Secure & Compliant**: Uses local LLMs via Ollama, ensuring **no proprietary data ever leaves your network**. The structured workflow creates the auditable trails required for regulatory oversight.
-*   🔬 **Domain-Specific**: Built by a pharmacometrician for pharmacometricians. The agent understands the context of PopPK, NCA, and tools like `nlmixr2`.
-*   ⚙️ **Production-Ready**: Moves beyond fragile scripts. It uses a foundational **Plan, Act, Observe, Reflect** loop—the building block for robust, self-correcting agents that can handle real-world complexity.
-*   🔄 **Reliable & Auditable**: Leverages Pydantic for structured, validated outputs. Every action the AI takes is predictable and traceable.
+### Installation
 
-## Quick Start
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/arianthony/pharmai.git
+   cd pharmai
+   ```
 
-Get the agent running in 5 minutes.
+2. **Install dependencies with uv**
+   ```bash
+   uv sync
+   ```
 
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/arianthony/pharmai.git
-    cd pharmai
-    ```
+3. **Configure MCP server**
+   
+   Copy the example MCP configuration:
+   ```bash
+   cp .mcp.json.example .mcp.json
+   ```
+   
+   Update `.mcp.json` with your paths:
+   ```json
+   {
+     "mcpServers": {
+       "PharmAI": {
+         "command": "/path/to/uv",
+         "args": [
+           "--directory",
+           "/path/to/pharmai",
+           "run",
+           "python",
+           "mcp_server.py"
+         ],
+         "env": {
+           "LOG_LEVEL": "INFO"
+         }
+       }
+     }
+   }
+   ```
+   
+   Find your uv path:
+   ```bash
+   which uv
+   ```
 
-2.  **Install Dependencies**
-    ```bash
-    pip install -r requirements.txt
-    ```
+4. **Verify MCP server connection**
+   ```bash
+   claude /mcp
+   ```
+   
+   You should see the PharmAI server listed and connected.
 
-3.  **Install & Run a Local LLM with Ollama**
-    ```bash
-    # Install Ollama (on macOS/Linux)
-    curl -fsSL https://ollama.com/install.sh | sh
+## Current Status
 
-    # Download and run the recommended model
-    ollama run qwen2.5-coder:7b
-    ```
-    *(For Windows, see [Ollama Windows Guide](https://github.com/ollama/ollama/blob/main/docs/windows.md))*
+- ✅ MCP server is up and running with the `extract_tasks_tool`
+- ✅ Test analysis plan in `/data` for demonstration
+- 🔄 Additional MCP tools in development
+- 🔄 Workflow templates being designed
 
-4.  **Run the Demo Notebook**
-    ```bash
-    jupyter notebook getting_started/pharmacometric_ai_demo.ipynb
-    ```
+## Getting Started
 
-## Blog Series: Building Production AI for Pharmacometrics
+For a hands-on introduction to the general concepts, see the [getting_started](./getting_started/) folder.
 
-This repository contains the code for the blog series, which documents the journey from a simple concept to a production-ready system.
+## Components
 
-1.  ✅ **The Vision**: [Why PopPK Analysis is Perfect for AI Automation](https://arianthony.github.io/intro/2025/05/31/welcome-to-pmx-ai.html)
-2.  ✅ **The Foundation**: [LLM Powered Pharmacometric Workflows](https://blog.pharm.ai/llm-powered-pharmacometric-workflows) 
-3.  🔄 **The Optimization**: Advanced RAG for Scientific Domain Knowledge (coming soon)
-4.  🔄 **The Orchestration**: Multi-Agent Workflows for End-to-End Analysis (coming soon)
-5.  🔄 **The Validation**: Human-in-the-Loop and Regulatory Compliance (coming soon)
+### Orchestrator Agent (MCP Client)
+Claude Code serves as the orchestrator agent, acting as a client to the MCP server. Future versions may include custom ReAct/coding agents using frameworks like litellm/Autogen.
+
+### PharmAI MCP Server
+Custom MCP server handling pharmacometric-specific tasks:
+- Analysis plan parsing
+- Custom REPL for R, Python, nlmixr2, and pharmpy commands
+- Data digitization
+- Specialized documentation loading
+- Report generation
+
+### Existing MCP Servers
+Integration with curated MCP servers:
+- [Context7](https://github.com/upstash/context7) for documentation loading
+- [MCP SSH](https://github.com/tufantunc/ssh-mcp) for remote server access
+- [Playwright](https://github.com/microsoft/playwright-mcp) for web scraping
+
+### Workflow Templates
+Structured templates for common pharmacometric tasks:
+- Exploratory analysis
+- PopPK analysis workflows
+- End-to-end analysis pipelines
+
+## Development
+
+### Running the MCP Server Directly
+```bash
+uv run python mcp_server.py
+```
+
+### Testing Tools
+```bash
+# Test the extract_tasks tool
+uv run python src/tools/extract_tasks_tool.py
+```
+
+## Blog Series
+
+This repository accompanies a blog series documenting the development process:
+
+1. ✅ **The Vision** (Published 5/31/2025): [Why PopPK Analysis is Perfect for AI Automation](https://www.aripritchardbell.com/blog/2025-05-31-welcome-to-pmx-ai)
+2. ✅ **The Foundation** (Published 6/09/2025): [LLM Powered Pharmacometric Workflows](https://www.aripritchardbell.com/blog/2025-06-09-llm-workflows-in-langchain)
+3. 🔄 **The Orchestration**: [Pharmacometrics × AI Part 3: The Orchestration] (planned)
 
 ## License & Disclaimer
 
