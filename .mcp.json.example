@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "PharmAI": {
+      "command": "/path/to/uv (run 'which uv' to find the path)",
+      "args": [
+        "--directory",
+        "/path/to/this/repo",
+        "run",
+        "python",
+        "mcp_server.py"
+      ],
+      "env": {
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}

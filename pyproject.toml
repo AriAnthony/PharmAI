@@ -3,4 +3,13 @@ name = "pharmai"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "docx2txt>=0.9",
+    "dspy>=2.6.27",
+    "fastmcp>=2.10.4",
+    "ipykernel>=6.29.5",
+    "langchain-community>=0.3.27",
+    "markdown>=3.8.2",
+    "pytest>=8.4.1",
+    "python-docx>=1.2.0",
+]
