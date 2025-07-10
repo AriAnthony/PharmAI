@@ -1,6 +1,9 @@
 ## PharmAI Project Outline
 Blog posts will cover some background and eventually go through each of the elements and explain how they are implemented.
 
+## Current Status
+- MCP server is up and running with the `extract_tasks_tool` and test analysis plan in `/data`
+
 ## Overview
 - Modular workflow with a central orchestrator agent as Claude Code (may later make subagent the orchestrator)
 - Custom MCP server for pharmacometric specific tasks (analysis plan parsing, pharmpy/nlmixr2/nonmem documentation loading, report generation)
