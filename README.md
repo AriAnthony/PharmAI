@@ -2,6 +2,8 @@
 
 PharmAI is a modular AI workflow system for pharmacometric analysis, featuring a custom MCP server and orchestrator agent for automating complex analytical tasks.
 
+Follow along as I write about this project [here](https://www.aripritchardbell.com/blog)
+
 ## Project Overview
 
 - **Modular Architecture**: Central orchestrator agent (Claude Code) with custom MCP server for pharmacometric tasks
