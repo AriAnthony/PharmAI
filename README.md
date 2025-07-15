@@ -2,14 +2,14 @@
 
 PharmAI is a modular AI workflow system for pharmacometric analysis, featuring a custom MCP server and orchestrator agent for automating complex analytical tasks.
 
+Follow along as I write about this project [here](https://www.aripritchardbell.com/blog)
+
 ## Project Overview
 
 - **Modular Architecture**: Central orchestrator agent (Claude Code) with custom MCP server for pharmacometric tasks
 - **MCP Server**: Built with FastMCP, handles analysis plan parsing, pharmpy/nlmixr2/nonmem documentation, report generation
 - **Workflow Templates**: Encapsulated as MCP prompts for common tasks (exploratory analysis, PopPK analysis, end-to-end workflows)
 - **Evaluation Framework**: Comprehensive testing using regulatory templates and published reports
-
-![Architecture Overview](./architecture_overview.png)
 
 ## Quick Setup
 
@@ -125,7 +125,7 @@ This repository accompanies a blog series documenting the development process:
 
 1. ✅ **The Vision** (Published 5/31/2025): [Why PopPK Analysis is Perfect for AI Automation](https://www.aripritchardbell.com/blog/2025-05-31-welcome-to-pmx-ai)
 2. ✅ **The Foundation** (Published 6/09/2025): [LLM Powered Pharmacometric Workflows](https://www.aripritchardbell.com/blog/2025-06-09-llm-workflows-in-langchain)
-3. 🔄 **The Orchestration**: Multi-Agent Workflows with Model Context Protocol (planned)
+3. 🔄 **The Orchestration**: [Pharmacometrics × AI Part 3: The Orchestration] (planned)
 
 ## License & Disclaimer
 
