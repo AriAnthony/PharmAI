@@ -41,8 +41,8 @@ def extract_tasks(filename: str) -> str:
 
 if __name__ == "__main__":
     # Initialize DSPy
-    lm = dspy.LM('ollama_chat/qwen2.5-coder:7b', api_base='http://localhost:11434', api_key='', temperature=0.9)
-    dspy.configure(lm=lm)
+    from dspy_utils import load_dspy_config
+    load_dspy_config()
 
     # Example usage
     filename = "./data/analysis_plan_arimab.docx"
