@@ -1,7 +1,24 @@
 import dspy
+import json
 import subprocess
 import sys
 from dspy_utils import load_dspy_config
+import mlflow
+
+# Initialize DSPy and MLflow
+load_dspy_config()
+
+# Configure MLflow experiment and enable simple autologging
+# Enable autologging with all features
+mlflow.dspy.autolog(
+    log_compiles=True,    # Track optimization process
+    log_evals=True,       # Track evaluation results
+    log_traces_from_compile=True  # Track program traces during optimization
+)
+
+# Configure MLflow tracking
+mlflow.set_tracking_uri("http://localhost:5000")  # Use local MLflow server
+mlflow.set_experiment("DSPy-REPL")
 
 class CodeGenerator(dspy.Signature):
     """Generate code to achieve a specific task, learning from previous attempts and feedback."""
@@ -9,21 +26,20 @@ class CodeGenerator(dspy.Signature):
     language: str = dspy.InputField(desc="Programming language to use (e.g., Python, R)")
     context: str = dspy.InputField(desc="Previous attempts, results, and specific feedback for improvement")
     
-    reasoning: str = dspy.OutputField(desc="Step-by-step thinking about the approach, addressing previous failures")
-    code: str = dspy.OutputField(desc="Complete script to execute, incorporating lessons learned")
+    reasoning: str = dspy.OutputField(desc="Step-by-step thinking about the approach")
+    code: str = dspy.OutputField(desc="Complete script to execute")
 
 class GoalEvaluator(dspy.Signature):
     """Evaluate if the executed code achieved the stated goal and provide actionable feedback."""
-    task: str = dspy.InputField(desc="The original task to achieve")
+    task: str = dspy.InputField(desc="What we want to achieve")
     language: str = dspy.InputField(desc="Programming language to use (e.g., Python, R)")
     code: str = dspy.InputField(desc="The code that was executed")
-    execution_result: str = dspy.InputField(desc="The result of code execution (success, stdout, stderr)")
+    execution_result: str = dspy.InputField(desc="The result of code execution (stdout, stderr)")
     
-    evaluation_reasoning: str = dspy.OutputField(desc="Detailed reasoning for why the task was or wasn't accomplished")
+    evaluation_reasoning: str = dspy.OutputField(desc="Detailed reasoning for why the task was or wasn't accomplished. Includes specific feedback for improvement towards the goal.")
     goal_achieved: bool = dspy.OutputField(desc="True if task was accomplished, False otherwise")
-    feedback: str = dspy.OutputField(desc="Specific, actionable feedback for the next attempt. Include what to fix, what to try differently, or what approach to take.")
 
-def execute_code(code, language="python", timeout=10):
+def execute_code(code, language="python", timeout=60):
     """Execute code via subprocess with timeout."""
     try:
         if language.lower() == "python":
@@ -69,19 +85,17 @@ def evaluate_goal(task, code, result, language):
     """Evaluate if the goal was achieved using LLM-based evaluation."""
     evaluator = dspy.ChainOfThought(GoalEvaluator)
     
-    execution_result = f"Success: {result['success']}, Return Code: {result['returncode']}, Output: {result['stdout']}, Error: {result['stderr']}"
-    
     return evaluator(
         task=task,
         language=language,  
         code=code,
-        execution_result=execution_result
+        execution_result=json.dumps(result, indent=2)
     )
 
 def repl_loop(task, language="python", max_iterations=5):
     """Main REPL loop that iteratively generates and executes code."""
     generator = dspy.ChainOfThought(CodeGenerator)
-    context = "This is the first attempt. Focus on understanding the task and creating a working solution."
+    context = "This is the first attempt."
     
     for iteration in range(1, max_iterations + 1):
         print(f"Attempt {iteration}...")
@@ -94,25 +108,24 @@ def repl_loop(task, language="python", max_iterations=5):
             return {
                 "success": True,
                 "iterations": iteration,
-                "final_code": response.code,
+                "response": response,
                 "result": result,
                 "evaluation": evaluation
             }
-        
-        print(f"Failed - {evaluation.feedback}")
-        context = f"Previous attempt failed. Code: {response.code}\nResult: {result}\nFeedback: {evaluation.feedback}"
+
+        print(f"Failed - \nresult: {json.dumps(result, indent=2)}\nReason: {evaluation.evaluation_reasoning}")
+        context = f"Previous attempt failed. Code: {response.code}\nResult: {json.dumps(result, indent=2)}\nFeedback: {evaluation.evaluation_reasoning}"
     
     return {
         "success": False,
         "iterations": max_iterations,
-        "final_code": response.code,
+        "response": response,
         "result": result,
         "evaluation": evaluation
     }
 
 def main():
     """Interactive REPL interface."""
-    load_dspy_config()
     print("DSPy Code Generation REPL")
     print("Type 'quit' to exit")
     
@@ -135,14 +148,9 @@ def main():
                 print(f"✅ Success in {result['iterations']} iterations")
             else:
                 print(f"❌ Failed after {result['iterations']} iterations")
-            
-            print(f"Final code:\n{result['final_code']}")
-            if result['result']['stdout']:
-                print(f"Output: {result['result']['stdout']}")
-            if result['result']['stderr']:
-                print(f"Error: {result['result']['stderr']}")
-            print(f"Evaluation: {result['evaluation'].evaluation_reasoning}")
-                
+
+            print(f"Output: {result}")
+
         except KeyboardInterrupt:
             print("\nExiting...")
             break
