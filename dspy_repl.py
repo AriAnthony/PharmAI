@@ -17,7 +17,8 @@ mlflow.dspy.autolog(
 )
 
 # Configure MLflow tracking
-mlflow.set_tracking_uri("http://localhost:5000")  # Use local MLflow server
+# To view results in UI, run: mlflow ui
+mlflow.set_tracking_uri("file:./mlruns")  # Use local file-based tracking
 mlflow.set_experiment("DSPy-REPL")
 
 class CodeGenerator(dspy.Signature):
@@ -39,7 +40,7 @@ class GoalEvaluator(dspy.Signature):
     evaluation_reasoning: str = dspy.OutputField(desc="Detailed reasoning for why the task was or wasn't accomplished. Includes specific feedback for improvement towards the goal.")
     goal_achieved: bool = dspy.OutputField(desc="True if task was accomplished, False otherwise")
 
-def execute_code(code, language="python", timeout=60):
+def execute_code(code, language="python", timeout=600):
     """Execute code via subprocess with timeout."""
     try:
         if language.lower() == "python":
