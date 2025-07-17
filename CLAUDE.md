@@ -1,3 +1,25 @@
+## Design Principles
+
+**YAGNI (You Aren't Gonna Need It)**
+- Build only what is needed now, not what might be needed later
+- Avoid premature optimization and complex architectures
+- Add features when proven necessary, not "just in case"
+
+**KISS (Keep It Simple, Stupid)**  
+- Prefer simple solutions over complex ones
+- Minimize dependencies and abstractions
+- Choose clarity over cleverness
+
+**Start Simple, Evolve When Needed**
+- Begin with the minimal viable implementation
+- Identify actual problems before solving theoretical ones
+- Refactor and add complexity only when current solution proves insufficient
+
+**Focus on Core Value**
+- Identify the essential functionality that delivers real value
+- Eliminate features that don't directly serve the primary use case
+- Question every layer of abstraction and complexity
+
 ## PharmAI Project Outline
 Blog posts will cover some background and eventually go through each of the elements and explain how they are implemented.
 

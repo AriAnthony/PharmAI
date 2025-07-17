@@ -1,0 +1,44 @@
+[
+  {
+    "task": "Load CSV data and show basic statistics",
+    "language": "python",
+    "reasoning": "Need to import pandas to handle CSV files, read the file, and use describe() to get summary statistics",
+    "code": "import pandas as pd\ndf = pd.read_csv('data.csv')\nprint(df.describe())\nprint(f'Shape: {df.shape}')"
+  },
+  {
+    "task": "Create a histogram of a column",
+    "language": "python",
+    "reasoning": "Use matplotlib to create a histogram visualization of data distribution",
+    "code": "import matplotlib.pyplot as plt\nimport pandas as pd\n\ndf = pd.read_csv('data.csv')\nplt.figure(figsize=(10, 6))\nplt.hist(df['column_name'], bins=30, alpha=0.7)\nplt.xlabel('Value')\nplt.ylabel('Frequency')\nplt.title('Distribution of column_name')\nplt.show()"
+  },
+  {
+    "task": "Read NONMEM output and extract parameter estimates",
+    "language": "python",
+    "reasoning": "Use pandas to read NONMEM output files and extract the final parameter estimates from the .ext file",
+    "code": "import pandas as pd\nimport numpy as np\n\n# Read NONMEM .ext file\next_file = 'run001.ext'\ndf = pd.read_csv(ext_file, delim_whitespace=True, skiprows=1)\n\n# Get final estimates (last iteration with ITERATION = -1000000000)\nfinal_estimates = df[df['ITERATION'] == -1000000000]\nprint('Final Parameter Estimates:')\nprint(final_estimates)"
+  },
+  {
+    "task": "Fit a basic PK model using nlmixr2",
+    "language": "r",
+    "reasoning": "Use nlmixr2 to fit a one-compartment PK model with first-order absorption",
+    "code": "library(nlmixr2)\nlibrary(dplyr)\n\n# Define the model\noneCompartment <- function() {\n  ini({\n    tka <- 0.45\n    tcl <- log(c(0, 2.19, 5))\n    tv <- 3.2\n    eta.ka ~ 0.6\n    eta.cl ~ 0.3\n    eta.v ~ 0.1\n    add.sd <- 0.7\n  })\n  model({\n    ka <- exp(tka + eta.ka)\n    cl <- exp(tcl + eta.cl)\n    v <- exp(tv + eta.v)\n    linCmt() ~ add(add.sd)\n  })\n}\n\n# Fit the model\nfit <- nlmixr(oneCompartment, data, est=\"saem\")\nprint(fit)"
+  },
+  {
+    "task": "Create a scatter plot with trend line",
+    "language": "python",
+    "reasoning": "Use matplotlib and scipy to create a scatter plot with a linear regression trend line",
+    "code": "import matplotlib.pyplot as plt\nimport numpy as np\nfrom scipy import stats\n\n# Generate or load data\nx = np.array([1, 2, 3, 4, 5])\ny = np.array([2, 4, 6, 8, 10])\n\n# Calculate trend line\nslope, intercept, r_value, p_value, std_err = stats.linregress(x, y)\nline = slope * x + intercept\n\n# Create plot\nplt.figure(figsize=(10, 6))\nplt.scatter(x, y, alpha=0.7, label='Data')\nplt.plot(x, line, 'r-', label=f'Trend (R\u00b2 = {r_value**2:.3f})')\nplt.xlabel('X values')\nplt.ylabel('Y values')\nplt.legend()\nplt.title('Scatter Plot with Trend Line')\nplt.show()"
+  },
+  {
+    "task": "Create diagnostic plots for model checking",
+    "language": "r",
+    "reasoning": "Use ggplot2 to create standard diagnostic plots for model validation",
+    "code": "library(ggplot2)\nlibrary(gridExtra)\n\n# Observed vs Predicted\np1 <- ggplot(data, aes(x = PRED, y = DV)) +\n  geom_point(alpha = 0.6) +\n  geom_abline(slope = 1, intercept = 0, color = 'red') +\n  labs(x = 'Predicted', y = 'Observed', title = 'Observed vs Predicted')\n\n# Residuals vs Predicted\np2 <- ggplot(data, aes(x = PRED, y = RES)) +\n  geom_point(alpha = 0.6) +\n  geom_hline(yintercept = 0, color = 'red') +\n  labs(x = 'Predicted', y = 'Residuals', title = 'Residuals vs Predicted')\n\n# Combine plots\ngrid.arrange(p1, p2, ncol = 2)"
+  },
+  {
+    "task": "Read multiple CSV files from a directory",
+    "language": "python",
+    "reasoning": "Use glob to find CSV files and pandas to read and combine them into a single dataframe",
+    "code": "import pandas as pd\nimport glob\nimport os\n\n# Find all CSV files in directory\ncsv_files = glob.glob('data/*.csv')\nprint(f'Found {len(csv_files)} CSV files')\n\n# Read and combine all files\ndataframes = []\nfor file in csv_files:\n    df = pd.read_csv(file)\n    df['source_file'] = os.path.basename(file)\n    dataframes.append(df)\n\n# Combine all dataframes\ncombined_df = pd.concat(dataframes, ignore_index=True)\nprint(f'Combined dataset shape: {combined_df.shape}')"
+  }
+]
