@@ -136,60 +136,94 @@ class GoalEvaluator(dspy.Signature):
     evaluation_reasoning: str = dspy.OutputField(desc="Detailed reasoning for why the task was or wasn't accomplished. Includes specific feedback for improvement towards the goal.")
     goal_achieved: bool = dspy.OutputField(desc="True if task was accomplished, False otherwise")
 
-def execute_code(code: str, language: str = "python", timeout: int = 600, save_script: bool = False) -> ExecutionResult:
-    """Execute code via subprocess with timeout and proper line number reporting."""
-    temp_file = None
+def clean_code(code: str, language: str) -> str:
+    """Clean code by removing markdown artifacts and other LLM response artifacts."""
+    # Remove markdown code fences
+    lines = code.strip().split('\n')
     
-    try:
-        # Create temporary file with proper extension
-        if language.lower() == "python":
-            suffix = ".py"
-            cmd_prefix = [sys.executable]
-        elif language.lower() == "r":
-            suffix = ".R"
-            cmd_prefix = ["Rscript"]
-        else:
-            return {
-                "success": False,
-                "stdout": "",
-                "stderr": f"Unsupported language: {language}",
-                "returncode": -1
-            }
-        
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as f:
-            f.write(code)
-            temp_file = f.name
-        
-        # Execute the file
-        cmd = cmd_prefix + [temp_file]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
-        
-        # Optionally save the script
-        if save_script and result.returncode == 0:
-            save_path = f"saved_script_{os.path.basename(temp_file)}"
-            os.rename(temp_file, save_path)
-            print(f"Script saved to: {save_path}")
-            temp_file = None  # Don't delete it
-        
-        return {
-            "success": result.returncode == 0,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "returncode": result.returncode
-        }
-    except subprocess.TimeoutExpired:
+    # Remove opening code fence (```python, ```r, etc.)
+    if lines and lines[0].strip().startswith('```'):
+        lines = lines[1:]
+    
+    # Remove closing code fence
+    if lines and lines[-1].strip() == '```':
+        lines = lines[:-1]
+    
+    # Remove any remaining standalone backticks
+    cleaned_lines = []
+    for line in lines:
+        # Skip lines that are just backticks
+        if line.strip() in ['```', '```python', '```r', f'```{language.lower()}']:
+            continue
+        cleaned_lines.append(line)
+    
+    return '\n'.join(cleaned_lines)
+
+def write_script(code: str, language: str, save_script: bool = False) -> str:
+    """Write code to a script file and return the file path."""
+    # Clean the code first
+    cleaned_code = clean_code(code, language)
+    
+    # Determine file extension
+    if language.lower() == "python":
+        suffix = ".py"
+    elif language.lower() == "r":
+        suffix = ".R"
+    else:
+        raise ValueError(f"Unsupported language: {language}")
+    
+    # Create temporary file with explicit UTF-8 encoding
+    with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False, encoding='utf-8') as f:
+        f.write(cleaned_code)
+        temp_path = f.name
+    
+    # Optionally save to permanent location
+    if save_script:
+        save_path = f"saved_script_{os.path.basename(temp_path)}"
+        os.rename(temp_path, save_path)
+        print(f"Script saved to: {save_path}")
+        return save_path
+    
+    return temp_path
+
+def execute_script(script_path: str, language: str) -> ExecutionResult:
+    """Execute a script file and return results."""
+    # Determine interpreter command
+    if language.lower() == "python":
+        cmd = [sys.executable, script_path]
+    elif language.lower() == "r":
+        cmd = ["Rscript", script_path]
+    else:
         return {
             "success": False,
             "stdout": "",
-            "stderr": f"Code execution timed out after {timeout} seconds",
+            "stderr": f"Unsupported language: {language}",
             "returncode": -1
         }
+    
+    # Execute with simple subprocess call
+    result = subprocess.run(cmd, capture_output=True)
+    
+    return {
+        "success": result.returncode == 0,
+        "stdout": result.stdout.decode('utf-8') if result.stdout else "",
+        "stderr": result.stderr.decode('utf-8') if result.stderr else "",
+        "returncode": result.returncode
+    }
+
+def execute_code(code: str, language: str = "python", save_script: bool = False) -> ExecutionResult:
+    """Execute code by writing to script file and running it."""
+    script_path = None
+    
+    try:
+        # Write code to script file
+        script_path = write_script(code, language, save_script)
+        
+        # Execute the script
+        result = execute_script(script_path, language)
+        
+        return result
+        
     except Exception as e:
         return {
             "success": False,
@@ -198,10 +232,10 @@ def execute_code(code: str, language: str = "python", timeout: int = 600, save_s
             "returncode": -1
         }
     finally:
-        # Clean up temporary file if not saved
-        if temp_file and os.path.exists(temp_file):
+        # Clean up temporary file (if not saved)
+        if script_path and not save_script and os.path.exists(script_path):
             try:
-                os.unlink(temp_file)
+                os.unlink(script_path)
             except:
                 pass  # Ignore cleanup errors
 
@@ -232,11 +266,13 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, exam
     for iteration in range(start_iteration, max_iterations + 1):
         print(f"Attempt {iteration}...")
         response = generator(task=task, language=language, context=context)
-        result = execute_code(response.code, language)
+        result = execute_code(response.code, language, save_script=False)
         evaluation = evaluate_goal(task, response.code, result, language)
         
         if evaluation.goal_achieved:
             print("Success!")
+            # Save the final successful script
+            execute_code(response.code, language, save_script=True)
             # Return the successful response with additional metadata
             return dspy.Prediction(
                 success=True,
@@ -252,6 +288,9 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, exam
 
         print(f"Failed - \nresult: {json.dumps(result, indent=2)}\nReason: {evaluation.evaluation_reasoning}")
         context = f"Previous attempt failed. Code: {response.code}\nResult: {json.dumps(result, indent=2)}\nFeedback: {evaluation.evaluation_reasoning}"
+    
+    # Save the final failed script
+    execute_code(response.code, language, save_script=True)
     
     # Save session state when max attempts reached (only if we started from iteration 1)
     if start_iteration == 1:
