@@ -7,8 +7,10 @@ Examples are loaded from examples.json and injected into prompts based on simple
 
 import dspy
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from typing import TypedDict, List, Optional
 from dspy_utils import load_dspy_config
 import mlflow
@@ -134,13 +136,18 @@ class GoalEvaluator(dspy.Signature):
     evaluation_reasoning: str = dspy.OutputField(desc="Detailed reasoning for why the task was or wasn't accomplished. Includes specific feedback for improvement towards the goal.")
     goal_achieved: bool = dspy.OutputField(desc="True if task was accomplished, False otherwise")
 
-def execute_code(code: str, language: str = "python", timeout: int = 600) -> ExecutionResult:
-    """Execute code via subprocess with timeout."""
+def execute_code(code: str, language: str = "python", timeout: int = 600, save_script: bool = False) -> ExecutionResult:
+    """Execute code via subprocess with timeout and proper line number reporting."""
+    temp_file = None
+    
     try:
+        # Create temporary file with proper extension
         if language.lower() == "python":
-            cmd = [sys.executable, "-c", code]
+            suffix = ".py"
+            cmd_prefix = [sys.executable]
         elif language.lower() == "r":
-            cmd = ["Rscript", "-e", code]
+            suffix = ".R"
+            cmd_prefix = ["Rscript"]
         else:
             return {
                 "success": False,
@@ -149,12 +156,27 @@ def execute_code(code: str, language: str = "python", timeout: int = 600) -> Exe
                 "returncode": -1
             }
         
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as f:
+            f.write(code)
+            temp_file = f.name
+        
+        # Execute the file
+        cmd = cmd_prefix + [temp_file]
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=timeout
         )
+        
+        # Optionally save the script
+        if save_script and result.returncode == 0:
+            save_path = f"saved_script_{os.path.basename(temp_file)}"
+            os.rename(temp_file, save_path)
+            print(f"Script saved to: {save_path}")
+            temp_file = None  # Don't delete it
+        
         return {
             "success": result.returncode == 0,
             "stdout": result.stdout,
@@ -175,6 +197,13 @@ def execute_code(code: str, language: str = "python", timeout: int = 600) -> Exe
             "stderr": f"Execution error: {str(e)}",
             "returncode": -1
         }
+    finally:
+        # Clean up temporary file if not saved
+        if temp_file and os.path.exists(temp_file):
+            try:
+                os.unlink(temp_file)
+            except:
+                pass  # Ignore cleanup errors
 
 def evaluate_goal(task, code, result, language):
     """Evaluate if the goal was achieved using LLM-based evaluation."""
@@ -187,17 +216,20 @@ def evaluate_goal(task, code, result, language):
         execution_result=json.dumps(result, indent=2)
     )
 
-def repl_loop(task: str, language: str = "python", max_iterations: int = 5, examples: Optional[List[Example]] = None) -> dspy.Prediction:
+def repl_loop(task: str, language: str = "python", max_iterations: int = 5, examples: Optional[List[Example]] = None, start_iteration: int = 1, initial_context: str = None) -> dspy.Prediction:
     """Main REPL loop that iteratively generates and executes code."""
     generator = dspy.ChainOfThought(CodeGenerator)
     
     # Build initial context with examples
-    context = "This is the first attempt."
-    if examples:
-        relevant = get_relevant_examples(examples, task, language)
-        context += format_examples_for_context(relevant)
+    if initial_context:
+        context = initial_context
+    else:
+        context = "This is the first attempt."
+        if examples:
+            relevant = get_relevant_examples(examples, task, language)
+            context += format_examples_for_context(relevant)
     
-    for iteration in range(1, max_iterations + 1):
+    for iteration in range(start_iteration, max_iterations + 1):
         print(f"Attempt {iteration}...")
         response = generator(task=task, language=language, context=context)
         result = execute_code(response.code, language)
@@ -221,6 +253,21 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, exam
         print(f"Failed - \nresult: {json.dumps(result, indent=2)}\nReason: {evaluation.evaluation_reasoning}")
         context = f"Previous attempt failed. Code: {response.code}\nResult: {json.dumps(result, indent=2)}\nFeedback: {evaluation.evaluation_reasoning}"
     
+    # Save session state when max attempts reached (only if we started from iteration 1)
+    if start_iteration == 1:
+        generator = dspy.ChainOfThought(CodeGenerator)
+        evaluator = dspy.ChainOfThought(GoalEvaluator)
+        save_session_state(
+            task=task,
+            language=language,
+            iteration=max_iterations + 1,  # Next iteration to try
+            max_iterations=max_iterations + 5,  # Allow 5 more attempts
+            context=context,
+            generator_state=generator.dump_state(),
+            evaluator_state=evaluator.dump_state(),
+            examples=examples or []
+        )
+    
     return dspy.Prediction(
         success=False,
         iterations=max_iterations,
@@ -233,32 +280,119 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, exam
         code=getattr(response, 'code', '')
     )
 
-def main():
+def save_session_state(task: str, language: str, iteration: int, max_iterations: int, context: str, generator_state: dict, evaluator_state: dict, examples: List[Example]) -> None:
+    """Save current session state for resumption."""
+    session_data = {
+        "task": task,
+        "language": language,
+        "current_iteration": iteration,
+        "max_iterations": max_iterations,
+        "context": context,
+        "generator_state": generator_state,
+        "evaluator_state": evaluator_state,
+        "examples": examples
+    }
+    
+    with open("session_state.json", 'w') as f:
+        json.dump(session_data, f, indent=2)
+    
+    print(f"Session saved. Resume with 'resume' option in main menu.")
+
+def load_session_state() -> Optional[dict]:
+    """Load session state from file."""
+    try:
+        with open("session_state.json", 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except json.JSONDecodeError:
+        print("Warning: Corrupted session state file.")
+        return None
+
+def resume_repl_loop(session_data: dict) -> dspy.Prediction:
+    """Resume REPL loop from saved session state."""
+    task = session_data["task"]
+    language = session_data["language"]
+    start_iteration = session_data["current_iteration"]
+    max_iterations = session_data["max_iterations"]
+    context = session_data["context"]
+    examples = session_data["examples"]
+    
+    # Recreate generator and evaluator with saved state
+    generator = dspy.ChainOfThought(CodeGenerator)
+    evaluator = dspy.ChainOfThought(GoalEvaluator)
+    
+    if "generator_state" in session_data:
+        generator.load_state(session_data["generator_state"])
+    if "evaluator_state" in session_data:
+        evaluator.load_state(session_data["evaluator_state"])
+    
+    print(f"Resuming task: {task}")
+    print(f"Starting from iteration {start_iteration}/{max_iterations}")
+    
+    return repl_loop(
+        task=task,
+        language=language, 
+        max_iterations=max_iterations,
+        examples=examples,
+        start_iteration=start_iteration,
+        initial_context=context
+    )
+
+def main(max_attempts: int = 5):
     """Interactive REPL interface."""
     print("DSPy Code Generation REPL")
-    print("Type 'quit' to exit")
+    print("Commands: 'quit' to exit, 'resume' to continue saved session")
     
     # Load examples
     examples = load_examples()
     print(f"Loaded {len(examples)} examples")
     
+    # Check for existing session
+    session_data = load_session_state()
+    if session_data:
+        print(f"Found saved session: {session_data['task']}")
+    
     while True:
         try:
-            task = input("\nTask: ").strip()
+            task = input("\nTask (or 'resume' to continue saved session): ").strip()
             if task.lower() in ['quit', 'exit', 'q']:
                 break
             if not task:
                 continue
             
-            language = input("Language (python/r): ").strip().lower() or "python"
-            if language not in ['python', 'r']:
-                language = "python"
-            
-            print(f"Running {language} code generation...")
-            result = repl_loop(task, language, examples=examples)
+            # Handle resume command
+            if task.lower() == 'resume':
+                # Reload session data in case it was created during current execution
+                current_session = load_session_state()
+                if current_session:
+                    result = resume_repl_loop(current_session)
+                    task = current_session["task"]  # For display purposes
+                else:
+                    print("No saved session found.")
+                    continue
+            else:
+                language = input("Language (python/r): ").strip().lower() or "python"
+                if language not in ['python', 'r']:
+                    language = "python"
+                
+                # Get max attempts (optional)
+                attempts_input = input(f"Max attempts (default {max_attempts}): ").strip()
+                if attempts_input:
+                    try:
+                        max_attempts = max(1, int(attempts_input))
+                    except ValueError:
+                        print(f"Invalid number, using default: {max_attempts}")
+                
+                print(f"Running {language} code generation...")
+                result = repl_loop(task, language, max_iterations=max_attempts, examples=examples)
             
             if result["success"]:
                 print(f"✅ Success in {result['iterations']} iterations")
+                
+                # Clean up session state on success
+                if os.path.exists("session_state.json"):
+                    os.remove("session_state.json")
                 
                 # Offer to save as example
                 save = input("Save this as an example? (y/n): ").strip().lower()
@@ -266,6 +400,7 @@ def main():
                     save_as_example(result)
             else:
                 print(f"❌ Failed after {result['iterations']} iterations")
+                print("Session state saved for resumption.")
 
         except KeyboardInterrupt:
             print("\nExiting...")
