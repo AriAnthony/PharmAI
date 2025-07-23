@@ -1,5 +1,5 @@
 {
-  "active_model": "anthropic",
+  "active_model": "anthropic_haiku",
   "models": {
     "ollama": {
       "model": "ollama_chat/qwen2.5-coder:7b",

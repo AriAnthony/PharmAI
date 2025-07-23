@@ -100,12 +100,44 @@ def format_examples_for_context(examples: List[Example]) -> str:
     return "\n".join(context_parts)
 
 def save_as_example(result: dspy.Prediction) -> None:
-    """Save a successful result as a new example."""
+    """Save a successful result as a new example with clean reasoning."""
+    # Determine if we need to generate clean reasoning
+    if result.iterations == 1:
+        # First iteration success - use original reasoning
+        clean_reasoning = result.reasoning
+        print("Using original reasoning (first iteration success)")
+    else:
+        # Multi-iteration success - generate clean reasoning
+        print(f"Generating clean reasoning (took {result.iterations} iterations)...")
+        reasoning_generator = dspy.ChainOfThought(ExampleReasoning)
+        clean_result = reasoning_generator(
+            task=result.task,
+            language=result.language,
+            code=result.code,
+            iteration_context=getattr(result, 'iteration_context', 'No iteration context available')
+        )
+        clean_reasoning = clean_result.reasoning
+    
+    # Preview the reasoning before saving
+    print(f"\n--- Example Preview ---")
+    print(f"Task: {result.task}")
+    print(f"Language: {result.language}")
+    print(f"Reasoning: {clean_reasoning}")
+    print(f"Code length: {len(result.code)} characters")
+    print("--- End Preview ---\n")
+    
+    # Confirm before saving
+    confirm = input("Save this example? (y/n): ").strip().lower()
+    if confirm != 'y':
+        print("Example not saved.")
+        return
+    
+    # Save the example
     examples = load_examples()
     new_example = {
         "task": result.task,
         "language": result.language,
-        "reasoning": result.reasoning,
+        "reasoning": clean_reasoning,
         "code": result.code
     }
     examples.append(new_example)
@@ -113,7 +145,7 @@ def save_as_example(result: dspy.Prediction) -> None:
     with open("examples.json", 'w') as f:
         json.dump(examples, f, indent=2)
     
-    print(f"Saved example: {result.task}")
+    print(f"✅ Saved example: {result.task}")
 
 class CodeGenerator(dspy.Signature):
     """Generate code to achieve a specific task, learning from previous attempts and feedback."""
@@ -135,6 +167,15 @@ class GoalEvaluator(dspy.Signature):
     
     evaluation_reasoning: str = dspy.OutputField(desc="Detailed reasoning for why the task was or wasn't accomplished. Includes specific feedback for improvement towards the goal.")
     goal_achieved: bool = dspy.OutputField(desc="True if task was accomplished, False otherwise")
+
+class ExampleReasoning(dspy.Signature):
+    """Generate clean, reusable reasoning for a successful code solution."""
+    task: str = dspy.InputField(desc="What we want to achieve")
+    language: str = dspy.InputField(desc="Programming language used") 
+    code: str = dspy.InputField(desc="The successful code solution")
+    iteration_context: str = dspy.InputField(desc="Context from previous iterations showing what was learned and refined")
+    
+    reasoning: str = dspy.OutputField(desc="Clear, general reasoning explaining the approach and methodology. Synthesize insights from the iteration process but avoid referencing specific attempts or failures.")
 
 def clean_code(code: str, language: str) -> str:
     """Clean code by removing markdown artifacts and other LLM response artifacts."""
@@ -283,7 +324,8 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, exam
                 task=task,
                 language=language,
                 reasoning=response.reasoning,
-                code=response.code
+                code=response.code,
+                iteration_context=context
             )
 
         print(f"Failed - \nresult: {json.dumps(result, indent=2)}\nReason: {evaluation.evaluation_reasoning}")
