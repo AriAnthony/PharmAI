@@ -42,14 +42,14 @@ class GameOfLife:
 
 def main():
     try:
-        game = GameOfLife(size=15, prob=0.3)
-        generations = 10
+        game = GameOfLife(size=50, prob=0.3)
+        generations = 100
         
         for gen in range(generations):
             print(f"Generation {gen}:")
             game.display()
             game.update()
-            time.sleep(0.5)
+            time.sleep(0.05)
     except Exception as e:
         print(f"An error occurred: {e}")
 

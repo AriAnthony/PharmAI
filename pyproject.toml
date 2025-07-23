@@ -11,6 +11,7 @@ dependencies = [
     "ipykernel>=6.29.5",
     "langchain-community>=0.3.27",
     "markdown>=3.8.2",
+    "pygame>=2.6.1",
     "pytest>=8.4.1",
     "python-docx>=1.2.0",
 ]

@@ -57,15 +57,24 @@ def clean_code(code: str) -> str:
     if lines and lines[0].strip().startswith('```'):
         lines = lines[1:]
     
-    # Find the actual end of code by looking for closing fence or explanatory text
+    # Find the actual end of code by scanning from bottom up
     end_idx = len(lines)
     for i in range(len(lines) - 1, -1, -1):
         line = lines[i].strip()
-        if (line.startswith('```') or 
-            line.startswith(('Note:', 'Key ', '- ', '* ', 'This ', 'The ')) or
-            line == '' and i > 0 and lines[i-1].strip().startswith(('Note:', 'Key ', '- '))):
+        
+        # Remove trailing backticks
+        if line == '```' or line.startswith('```'):
             end_idx = i
-        else:
+            continue
+            
+        # Remove explanatory text patterns
+        if (line.startswith(('Note:', 'Key ', '- ', '* ', 'This ', 'The ', 'You\'ll need', 'Install', 'pip install')) or
+            line == '' and i > 0 and lines[i-1].strip().startswith(('Note:', 'Key ', '- ', 'You\'ll need', 'Install'))):
+            end_idx = i
+            continue
+            
+        # If we find actual code content, stop trimming
+        if line and not line.startswith('#'):  # Allow comments but stop at real code
             break
     
     return '\n'.join(lines[:end_idx])
