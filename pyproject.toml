@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
+    "colorama>=0.4.6",
     "docx2txt>=0.9",
     "dspy>=2.6.27",
     "fastmcp>=2.10.4",

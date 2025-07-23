@@ -1610,6 +1610,7 @@ name = "pharmai"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "colorama" },
     { name = "docx2txt" },
     { name = "dspy" },
     { name = "fastmcp" },
@@ -1622,6 +1623,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "colorama", specifier = ">=0.4.6" },
     { name = "docx2txt", specifier = ">=0.9" },
     { name = "dspy", specifier = ">=2.6.27" },
     { name = "fastmcp", specifier = ">=2.10.4" },
