@@ -10,7 +10,6 @@ import os
 import subprocess
 import sys
 import tempfile
-from typing import TypedDict
 from dspy_utils import load_dspy_config
 import mlflow
 
@@ -32,33 +31,32 @@ mlflow.set_experiment("DSPy-REPL")
 
 # Type definitions
 
-class ExecutionResult(TypedDict):
-    """Schema for code execution results."""
-    success: bool
-    stdout: str
-    stderr: str
-    returncode: int
 
 
-
-class CodeGeneratorAndEvaluator(dspy.Signature):
-    """Generate code to achieve a specific task and evaluate if finished after execution."""
+class CodeGenerator(dspy.Signature):
+    """Generate code to achieve a specific task."""
     task: str = dspy.InputField(desc="What we want to achieve")
     language: str = dspy.InputField(desc="Programming language to use (e.g., Python, R)")
-    context: str = dspy.InputField(desc="Previous attempt and result")
-    execution_result: str = dspy.InputField(desc="The result of code execution from previous attempt (empty for first attempt)")
+    context: str = dspy.InputField(desc="Previous attempts and feedback")
     
     reasoning: str = dspy.OutputField(desc="Step-by-step thinking about the approach")
     code: str = dspy.OutputField(desc="Complete script to execute")
-    finished: bool = dspy.OutputField(desc="True ONLY if there are execution results showing the task is complete. Always False on first attempt when execution_result is empty. Only True when previous code execution demonstrates task completion.")
+
+class TaskEvaluator(dspy.Signature):
+    """Evaluate if executed code completed the task and provide summary."""
+    task: str = dspy.InputField(desc="What we wanted to achieve")
+    code: str = dspy.InputField(desc="The code that was executed")
+    execution_result: str = dspy.InputField(desc="The result of code execution")
+    
+    result_summary: str = dspy.OutputField(desc="Analyze the execution result. If task completed, explain what was accomplished and key results. If not completed, explain what still needs to be done and why.")
+    task_completed: bool = dspy.OutputField(desc="Based on the above analysis, True if task was successfully completed")
 
 
-def clean_code(code: str, language: str) -> str:
-    """Clean code by removing markdown artifacts and other LLM response artifacts."""
-    # Remove markdown code fences
+def clean_code(code: str) -> str:
+    """Remove markdown code fences from code."""
     lines = code.strip().split('\n')
     
-    # Remove opening code fence (```python, ```r, etc.)
+    # Remove opening code fence
     if lines and lines[0].strip().startswith('```'):
         lines = lines[1:]
     
@@ -66,80 +64,81 @@ def clean_code(code: str, language: str) -> str:
     if lines and lines[-1].strip() == '```':
         lines = lines[:-1]
     
-    # Remove any remaining standalone backticks
-    cleaned_lines = []
-    for line in lines:
-        # Skip lines that are just backticks
-        if line.strip() in ['```', '```python', '```r', f'```{language.lower()}']:
-            continue
-        cleaned_lines.append(line)
-    
-    return '\n'.join(cleaned_lines)
+    return '\n'.join(lines)
 
-def write_script(code: str, language: str, save_script: bool = False) -> str:
-    """Write code to a script file and return the file path."""
-    # Clean the code first
-    cleaned_code = clean_code(code, language)
+def generate_script_name(task: str, max_length: int = 50) -> str:
+    """Generate a clean script name from task description."""
+    # Replace spaces and special characters with underscores
+    import re
+    clean_name = re.sub(r'[^\w\s-]', '', task)  # Remove special chars except spaces and hyphens
+    clean_name = re.sub(r'[-\s]+', '_', clean_name)  # Replace spaces/hyphens with underscores
+    clean_name = clean_name.strip('_')  # Remove leading/trailing underscores
     
-    # Determine file extension
-    if language.lower() == "python":
-        suffix = ".py"
-    elif language.lower() == "r":
-        suffix = ".R"
-    else:
-        raise ValueError(f"Unsupported language: {language}")
+    # Truncate to max length
+    if len(clean_name) > max_length:
+        clean_name = clean_name[:max_length].rstrip('_')
     
-    # Create temporary file with explicit UTF-8 encoding
-    with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False, encoding='utf-8') as f:
-        f.write(cleaned_code)
-        temp_path = f.name
-    
-    # Optionally save to permanent location
-    if save_script:
-        save_path = f"saved_script_{os.path.basename(temp_path)}"
-        os.rename(temp_path, save_path)
-        print(f"Script saved to: {save_path}")
-        return save_path
-    
-    return temp_path
+    return clean_name or "script"  # Fallback if empty
 
-def execute_script(script_path: str, language: str) -> ExecutionResult:
-    """Execute a script file and return results."""
-    # Determine interpreter command
-    if language.lower() == "python":
-        cmd = [sys.executable, script_path]
-    elif language.lower() == "r":
-        cmd = ["Rscript", script_path]
-    else:
-        return {
-            "success": False,
-            "stdout": "",
-            "stderr": f"Unsupported language: {language}",
-            "returncode": -1
-        }
-    
-    # Execute with simple subprocess call
-    result = subprocess.run(cmd, capture_output=True)
-    
-    return {
-        "success": result.returncode == 0,
-        "stdout": result.stdout.decode('utf-8') if result.stdout else "",
-        "stderr": result.stderr.decode('utf-8') if result.stderr else "",
-        "returncode": result.returncode
-    }
-
-def execute_code(code: str, language: str = "python", save_script: bool = False) -> ExecutionResult:
-    """Execute code by writing to script file and running it."""
+def execute_code(code: str, language: str = "python", save_script: bool = False, save_only: bool = False, script_name: str = None) -> dict:
+    """Execute code and return results."""
     script_path = None
     
     try:
-        # Write code to script file
-        script_path = write_script(code, language, save_script)
+        # Clean and prepare code
+        cleaned_code = clean_code(code)
         
-        # Execute the script
-        result = execute_script(script_path, language)
+        # Determine file extension
+        if language.lower() == "python":
+            suffix = ".py"
+        elif language.lower() == "r":
+            suffix = ".R"
+        else:
+            raise ValueError(f"Unsupported language: {language}")
         
-        return result
+        # If save_only, just save and return success
+        if save_only:
+            base_name = script_name if script_name else "saved_script"
+            save_path = f"{base_name}{suffix}"
+            with open(save_path, 'w', encoding='utf-8') as f:
+                f.write(cleaned_code)
+            print(f"Script saved to: {save_path}")
+            return {
+                "success": True,
+                "stdout": "",
+                "stderr": "",
+                "returncode": 0
+            }
+        
+        # Normal execution path
+        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False, encoding='utf-8') as f:
+            f.write(cleaned_code)
+            script_path = f.name
+        
+        # Execute
+        if language.lower() == "python":
+            cmd = [sys.executable, script_path]
+        else:  # R
+            cmd = ["Rscript", script_path]
+            
+        result = subprocess.run(cmd, capture_output=True)
+        
+        execution_result = {
+            "success": result.returncode == 0,
+            "stdout": result.stdout.decode('utf-8') if result.stdout else "",
+            "stderr": result.stderr.decode('utf-8') if result.stderr else "",
+            "returncode": result.returncode
+        }
+        
+        # Save script if requested
+        if save_script:
+            base_name = script_name if script_name else f"saved_script_{os.path.basename(script_path)}"
+            save_path = f"{base_name}{suffix}"
+            with open(save_path, 'w', encoding='utf-8') as f:
+                f.write(cleaned_code)
+            print(f"Script saved to: {save_path}")
+        
+        return execution_result
         
     except Exception as e:
         return {
@@ -149,81 +148,90 @@ def execute_code(code: str, language: str = "python", save_script: bool = False)
             "returncode": -1
         }
     finally:
-        # Clean up temporary file (if not saved)
-        if script_path and not save_script and os.path.exists(script_path):
+        # Clean up temp file
+        if script_path and os.path.exists(script_path):
             try:
                 os.unlink(script_path)
             except:
-                pass  # Ignore cleanup errors
+                pass
 
 
 def repl_loop(task: str, language: str = "python", max_iterations: int = 5, debug: bool = False) -> dspy.Prediction:
     """Main REPL loop that iteratively generates and executes code."""
-    # Ensure at least 2 iterations so LLM can see execution results before evaluating completion
-    max_iterations = max(2, max_iterations)
-    generator = dspy.ChainOfThought(CodeGeneratorAndEvaluator)
+    generator = dspy.ChainOfThought(CodeGenerator)
+    evaluator = dspy.ChainOfThought(TaskEvaluator)
+    
+    # Generate script name from task
+    script_name = generate_script_name(task)
     
     context = "This is the first attempt."
-    execution_result = ""
     
     for iteration in range(1, max_iterations + 1):
         print(f"Attempt {iteration}...")
         
         if debug:
             print(f"DEBUG - Context: {context}")
-            print(f"DEBUG - Execution result from previous: {execution_result}")
         
-        response = generator(
+        # Generate code (LLM call #1)
+        code_response = generator(
             task=task, 
             language=language, 
-            context=context,
-            execution_result=execution_result
+            context=context
         )
         
         if debug:
-            print(f"DEBUG - Generated reasoning: {response.reasoning}")
-            print(f"DEBUG - Generated code:\n{response.code}")
-            print(f"DEBUG - Finished flag: {response.finished}")
+            print(f"DEBUG - Generated reasoning: {code_response.reasoning}")
+            print(f"DEBUG - Generated code:\n{code_response.code}")
         
-        result = execute_code(response.code, language, save_script=False)
+        # Execute code
+        result = execute_code(code_response.code, language, save_script=False)
         execution_result = json.dumps(result, indent=2)
         
         if debug:
             print(f"DEBUG - Execution result: {execution_result}")
         
-        # Only check finished flag after first iteration (when LLM has seen execution results)
-        if iteration > 1 and response.finished:
+        # Evaluate completion (LLM call #2)
+        eval_response = evaluator(
+            task=task,
+            code=code_response.code,
+            execution_result=execution_result
+        )
+        
+        if debug:
+            print(f"DEBUG - Task completed: {eval_response.task_completed}")
+            print(f"DEBUG - Result summary: {eval_response.result_summary}")
+        
+        if eval_response.task_completed:
             print("Success!")
-            # Save the final successful script
-            execute_code(response.code, language, save_script=True)
+            print(f"Summary: {eval_response.result_summary}")
+            # Save the successful script without re-executing
+            execute_code(code_response.code, language, save_only=True, script_name=script_name)
             return dspy.Prediction(
                 success=True,
                 iterations=iteration,
                 task=task,
                 language=language,
-                reasoning=response.reasoning,
-                code=response.code,
-                result=result
+                reasoning=code_response.reasoning,
+                code=code_response.code,
+                result=result,
+                result_summary=eval_response.result_summary
             )
 
-        if iteration == 1:
-            print(f"First attempt executed - \nresult: {execution_result}")
-        else:
-            print(f"Not finished - \nresult: {execution_result}")
-        
-        context = f"Previous attempt. Code: {response.code}\nResult: {execution_result}\nContinue working on the task."
+        print(f"Not completed - {eval_response.result_summary}")
+        context = f"Previous attempt failed. Code: {code_response.code}\nResult: {execution_result}\nWhat needs to be done: {eval_response.result_summary}"
     
     # Save the final script even if not finished
-    execute_code(response.code, language, save_script=True)
+    execute_code(code_response.code, language, save_only=True, script_name=script_name)
     
     return dspy.Prediction(
         success=False,
         iterations=max_iterations,
         task=task,
         language=language,
-        reasoning=getattr(response, 'reasoning', ''),
-        code=getattr(response, 'code', ''),
-        result=result
+        reasoning=code_response.reasoning,
+        code=code_response.code,
+        result=result,
+        result_summary=eval_response.result_summary
     )
 
 
@@ -244,11 +252,11 @@ def main(max_attempts: int = 5):
             if language not in ['python', 'r']:
                 language = "python"
             
-            # Get max attempts (optional, minimum 2)
-            attempts_input = input(f"Max attempts (default {max_attempts}, minimum 2): ").strip()
+            # Get max attempts (optional)
+            attempts_input = input(f"Max attempts (default {max_attempts}): ").strip()
             if attempts_input:
                 try:
-                    max_attempts = max(2, int(attempts_input))
+                    max_attempts = max(1, int(attempts_input))
                 except ValueError:
                     print(f"Invalid number, using default: {max_attempts}")
             
@@ -261,8 +269,12 @@ def main(max_attempts: int = 5):
             
             if result.success:
                 print(f"✅ Success in {result.iterations} iterations")
+                if hasattr(result, 'result_summary'):
+                    print(f"📋 {result.result_summary}")
             else:
                 print(f"❌ Failed after {result.iterations} iterations")
+                if hasattr(result, 'result_summary'):
+                    print(f"❌ {result.result_summary}")
 
         except KeyboardInterrupt:
             print("\nExiting...")
