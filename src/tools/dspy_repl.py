@@ -79,7 +79,7 @@ def clean_code(code: str) -> str:
     
     return '\n'.join(lines[:end_idx])
 
-def generate_script_name(task: str, max_length: int = 50) -> str:
+def generate_script_name(task: str, max_length: int = 10) -> str:
     """Generate a clean script name from task description."""
     clean_name = re.sub(r'[^\w\s-]', '', task)  # Remove special chars except spaces and hyphens
     clean_name = re.sub(r'[-\s]+', '_', clean_name)  # Replace spaces/hyphens with underscores
