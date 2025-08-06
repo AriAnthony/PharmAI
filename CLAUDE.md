@@ -23,8 +23,28 @@
 ## PharmAI Project Outline
 Blog posts will cover some background and eventually go through each of the elements and explain how they are implemented.
 
+## Architecture Philosophy
+
+**Hybrid Agent-Module Architecture**
+- **Modules provide**: Structure, validation, reproducibility, compliance
+- **Agent provides**: Adaptability, reasoning, problem-solving, integration
+- **Sweet spot**: Modules create optimal execution context for intelligent agents
+
+**Eval-Driven Development**
+- Component-level evals for rapid iteration and optimization
+- End-to-end agent evaluation for workflow effectiveness
+- Synthetic data generation for scalable testing
+- Continuous improvement through DSPy optimization and fine-tuning
+
 ## Current Status
-- MCP server is up and running with the `extract_tasks_tool` and test analysis plan in `/data`
+- MCP server operational with `extract_tasks_tool` and analysis plan parsing
+- Template-driven task structure in `/templates/template_tasks.md`
+- **Synthetic data generation**: DSPy-powered synthetic data generator creating complete datasets
+  - **Glucamax dataset**: Type 2 diabetes Phase 2 dose-finding study with CDISC-formatted data (PC, EX, DM, LB, VS domains)
+  - **Analysis plan generation**: Automated creation of population PK/PD analysis plans from templates
+  - **mrgsolve simulation**: R scripts generating realistic PK/PD trial data with known parameters
+- **REPL evolution**: Moving from standalone tool to agent-controlled execution engine
+- **Hybrid approach validated**: Modular components + agent orchestration
 
 ## Overview
 - Modular workflow with a central orchestrator agent as Claude Code (may later make subagent the orchestrator)
@@ -35,18 +55,28 @@ Blog posts will cover some background and eventually go through each of the elem
 ![](./architecture_overview.png)
 
 ## Components
-**Orchestrator Agent (MCP Client)**
+**Orchestrator Agent (Hybrid Control)**
 
-For now Claude Code will be the orchestrator agent, but a custom ReAct/coding agent may be constructed using litellm/Autogen/MCP-agent (frameworks are being investigated). It needs to act as a client to the MCP server. [List of clients](https://modelcontextprotocol.io/clients)
+Claude Code acts as the primary orchestrator, providing:
+- End-to-end workflow execution with contextual reasoning
+- Adaptive problem-solving when standard patterns fail
+- Integration across analysis phases
+- Domain expertise in pharmacometric methods
 
-**PharmAI MCP Server**
+The agent operates within a structured framework provided by modular components, receiving rich context injection including analysis plans, quality criteria, and execution constraints.
 
-The MCP server (built with the FastMCP package wrapping simply defined tools) will handle all pharmacometric specific tasks. 
-- analysis plan parsing
-- custom REPL to run R, Python, nlmixr2, and pharmpy commands (Locally, Docker, and or SSH to remote server; SSH MCP server)
-- data digitization
-- specialized documentation loading using pharmpy/nlmixr2/nonmem (custom or Context7 MCP server)
-- report generation
+**PharmAI MCP Server (Execution Engine)**
+
+Enhanced REPL-based execution engine supporting:
+- **Agent-controlled execution**: Structured context injection from orchestrator
+- **Multi-environment support**: Local, SSH, Docker, cloud execution
+- **Rich context handling**: Analysis plans, quality criteria, domain constraints
+- **Pharmacometric specialization**: R/Python/nlmixr2/NONMEM integration
+- Core capabilities:
+  - Analysis plan parsing and task extraction
+  - Code generation and iterative execution
+  - Data processing and validation
+  - Report generation and compliance checking
 
 **Existing MCP Servers**
 Existing MCP servers will be evaluated and curated as they fit within a given workflow. This may include:
@@ -61,15 +91,98 @@ Workflow templates will be created to encapsulate common tasks and processes for
 - PopPK analysis (e.g., "Read x data, run nlmixr2 model, generate report")
 - End to end (e.g., "Parse analysis plan and explore data, run PopPK analysis, generate report" with details on what, where, and how)
 
-**Evaluation**
+**Evaluation Framework**
 
-Pharmacometric test data is intrinsically well suited for generation. Evaluation should be divided into modular tests as well as end-to-end tests.  Evals may be incorporated as an MCP server component.
-- Report and analysis plan templates (prompt ChatGPT deep research with regulatory sources), then use to make dummy reports with dummy population simulations with mrgsolve
-- Reconstructed from published reports (FDA/Health Canada), simulated data from published model
-- Create rubric from published FDA reviews.
+**Three-Tier Evaluation Strategy**:
+
+*Component Level (Fast, Frequent)*:
+- Code generation validity and efficiency
+- Data parsing accuracy  
+- Statistical method correctness
+- Plot quality and compliance
+
+*Integration Level (Medium)*:
+- Task sequence optimization
+- Error recovery effectiveness
+- Cross-module communication
+- Context utilization quality
+
+*End-to-End Level (Comprehensive)*:
+- Full PopPK workflow success
+- Parameter recovery accuracy
+- Regulatory compliance scoring
+- Novel compound adaptability
+
+**Synthetic Data Strategy**:
+- mrgsolve/NONMEM-generated datasets with known parameters
+- Graded complexity levels (simple to complex PK profiles)
+- Diverse covariate scenarios (renal impairment, pediatric, etc.)
+- Regulatory scenario coverage (FDA/EMA guidelines)
+
+## Implementation Roadmap
+
+### Phase 1: Enhanced REPL & Eval Infrastructure (Current)
+**Objectives**: Transform REPL into agent-controlled execution engine with comprehensive evaluation
+
+**Deliverables**:
+- [ ] Agent-controlled REPL with context injection interface
+- [ ] Multi-environment execution (local, SSH, Docker)
+- [x] **Synthetic data generator with known PK parameters** (Glucamax dataset complete)
+- [x] **DSPy-powered analysis plan generation** from templates
+- [x] **CDISC-formatted datasets** with realistic PK/PD profiles
+- [ ] Component-level evaluation framework
+- [x] **Template-driven task structure validation** (template_tasks.md)
+
+**Success Metrics**:
+- REPL accepts structured context from agent
+- Code generation quality scores >90% on synthetic data
+- Multi-environment execution works reliably
+
+### Phase 2: Modular Optimization (Next 2-3 months)
+**Objectives**: Optimize individual components through targeted evaluation
+
+**Deliverables**:
+- [ ] DSPy-optimized prompting for each REPL component
+- [ ] Automated quality scoring for code generation
+- [ ] Error recovery pattern optimization
+- [ ] Performance benchmarking suite
+- [ ] A/B testing framework for different strategies
+
+**Success Metrics**:
+- 50% improvement in component-level performance
+- Reduced iteration counts in REPL loops
+- Higher success rates on complex analysis tasks
+
+### Phase 3: End-to-End Agent Integration (Months 3-6)
+**Objectives**: Full workflow optimization with agent fine-tuning
+
+**Deliverables**:
+- [ ] End-to-end evaluation on complete PopPK analyses
+- [ ] Agent fine-tuning on successful execution patterns
+- [ ] Regulatory compliance validation framework
+- [ ] Multi-compound analysis capability
+- [ ] Continuous learning pipeline
+
+**Success Metrics**:
+- 95%+ success rate on standard PopPK analyses
+- Regulatory submission-ready outputs
+- Handles novel compounds without human intervention
+
+### Phase 4: Production Deployment (Months 6-12)
+**Objectives**: Real-world validation and scaling
+
+**Deliverables**:
+- [ ] Production-grade reliability and error handling
+- [ ] Integration with existing pharma workflows
+- [ ] Multi-therapeutic area expansion
+- [ ] Regulatory agency validation
+- [ ] Commercial deployment readiness
+
+**Success Metrics**:
+- Real-world analysis success >90%
+- Regulatory acceptance for submissions
+- 10x improvement in analysis efficiency
 
 **Optimization**
 
-Optimization will be performed at the atomic level via DSPy prompt optimization and finetuning. End-to-end will be performed with the complete MCP server and orchestrator agent potentially using finetuning and/or reinforcement learning. 
-
-
+Optimization will be performed at the atomic level via DSPy prompt optimization and finetuning. End-to-end will be performed with the complete MCP server and orchestrator agent potentially using finetuning and/or reinforcement learning.

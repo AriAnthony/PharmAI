@@ -1,0 +1,23 @@
+{
+  "examples": [
+    {
+      "drug_name": "Dermakinib",
+      "indication": "Atopic Dermatitis",
+      "mechanism": "Selective JAK1 inhibitor",
+      "competitor": "Dupixent",
+      "trial_type": "Phase 2 dose-finding",
+      "_metadata": {
+        "generated_at": "2025-08-06T15:12:43.214809",
+        "partial_input": {
+          "trial_type": "Phase 2 dose-finding",
+          "indication": "Atopic Dermatitis"
+        },
+        "generation_method": "dspy_llm"
+      }
+    }
+  ],
+  "metadata": {
+    "created": "2025-08-06T15:12:43.213630",
+    "last_updated": "2025-08-06T15:12:43.214815"
+  }
+}

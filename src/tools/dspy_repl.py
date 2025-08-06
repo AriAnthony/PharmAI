@@ -35,7 +35,7 @@ class CodeGenerator(dspy.Signature):
     task: str = dspy.InputField(desc="What we want to achieve")
     language: str = dspy.InputField(desc="Programming language to use (e.g., Python, R)")
     context: str = dspy.InputField(desc="Previous attempts and feedback")
-    
+    # Output: generated code and reasoning
     reasoning: str = dspy.OutputField(desc="Step-by-step thinking about the approach")
     code: str = dspy.OutputField(desc="Complete script to execute")
 
@@ -44,7 +44,7 @@ class TaskEvaluator(dspy.Signature):
     task: str = dspy.InputField(desc="What we wanted to achieve")
     code: str = dspy.InputField(desc="The code that was executed")
     execution_result: str = dspy.InputField(desc="The result of code execution")
-    
+    # Output: analysis of execution result and completion status
     result_summary: str = dspy.OutputField(desc="Analyze the execution result. If task completed, explain what was accomplished and key results. If not completed, explain what still needs to be done and why.")
     task_completed: bool = dspy.OutputField(desc="Based on the above analysis, True if task was successfully completed")
 
@@ -92,6 +92,20 @@ def generate_script_name(task: str, max_length: int = 10) -> str:
     return clean_name or "script"  # Fallback if empty
 
 
+def estimate_tokens(text: str) -> int:
+    """Rough token estimate: ~4 characters per token"""
+    return len(text) // 4
+
+
+def warn_about_context_size(context: str) -> None:
+    """Warn user if context might exceed model token limits."""
+    estimated_tokens = estimate_tokens(context)
+    if estimated_tokens > 3000:  # Conservative threshold
+        print(f"⚠️  Warning: Large context ({estimated_tokens} estimated tokens). May hit model limits.")
+        if estimated_tokens > 6000:
+            print("   Consider using a shorter script or breaking into smaller pieces.")
+
+
 def load_script_as_context(file_path: str) -> str:
     """Load existing script as starting context."""
     try:
@@ -109,8 +123,12 @@ def execute_code(code: str, language: str = "python", save_only: bool = False, s
         cleaned_code = clean_code(code)
         suffix = ".py" if language.lower() == "python" else ".R"
         
+        # Ensure temp_workdir exists
+        temp_workdir = "temp_workdir"
+        os.makedirs(temp_workdir, exist_ok=True)
+        
         if save_only:
-            save_path = f"{script_name or 'saved_script'}{suffix}"
+            save_path = os.path.join(temp_workdir, f"{script_name or 'saved_script'}{suffix}")
             with open(save_path, 'w', encoding='utf-8') as f:
                 f.write(cleaned_code)
             print(f"Script saved to: {save_path}")
@@ -150,8 +168,9 @@ def execute_code(code: str, language: str = "python", save_only: bool = False, s
 
 def repl_loop(task: str, language: str = "python", max_iterations: int = 5, debug: bool = False, existing_code: str = None) -> dspy.Prediction:
     """Main REPL loop that iteratively generates and executes code."""
-    generator = dspy.ChainOfThought(CodeGenerator)
-    evaluator = dspy.ChainOfThought(TaskEvaluator)
+    # Configure generators with higher token limits for complex scripts
+    generator = dspy.ChainOfThought(CodeGenerator, max_tokens=8000)
+    evaluator = dspy.ChainOfThought(TaskEvaluator, max_tokens=8000)
     
     # Generate script name from task
     script_name = generate_script_name(task)
@@ -161,6 +180,9 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, debu
         context = f"Starting with this working code as a base:\n\n```{language}\n{existing_code}\n```\n\nNow enhance/modify it to: {task}"
     else:
         context = "This is the first attempt."
+    
+    # Warn about potentially large context
+    warn_about_context_size(context)
     
     for iteration in range(1, max_iterations + 1):
         print(f"Attempt {iteration}...")
@@ -215,6 +237,9 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, debu
 
         print(f"Not completed - {eval_response.result_summary}")
         context = f"Previous attempt failed. Code: {code_response.code}\nResult: {execution_result}\nWhat needs to be done: {eval_response.result_summary}"
+        
+        # Warn about context growth in iterations
+        warn_about_context_size(context)
     
     execute_code(code_response.code, language, save_only=True, script_name=script_name)
     
