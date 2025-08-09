@@ -113,7 +113,30 @@ Structured templates for common pharmacometric tasks:
 uv run python mcp_server.py
 ```
 
-### Testing Tools
+### Tools
+
+#### DSPy REPL (Interactive Code Generation)
+The DSPy REPL provides an AI-powered code generation interface with self-correction and MLflow tracking:
+
+```bash
+# Start the interactive REPL
+uv run python src/tools/dspy_repl.py
+
+# Example session:
+# Task: create a simple plot of random data with seaborn
+# Language (python/r): python
+# Max attempts (default 5): 3
+# Debug mode? (y/n): n
+```
+
+Key features:
+- **Iterative refinement**: Automatically debugs and improves code based on execution results
+- **Multi-language support**: Python and R code generation
+- **Context loading**: Load existing scripts with `load:filename.py` to enhance/modify them
+- **MLflow tracking**: All generations and evaluations are logged for analysis
+- **Smart saving**: Successful scripts are automatically saved to `temp_workdir/`
+
+#### Testing Tools
 ```bash
 # Test the extract_tasks tool
 uv run python src/tools/extract_tasks_tool.py
@@ -121,11 +144,18 @@ uv run python src/tools/extract_tasks_tool.py
 
 ## Blog Series
 
-This repository accompanies a blog series documenting the development process:
+This repository accompanies a blog series documenting the development process. Read all posts at [aripritchardbell.com/blog](https://www.aripritchardbell.com/blog).
 
-1. ✅ **The Vision** (Published 5/31/2025): [Why PopPK Analysis is Perfect for AI Automation](https://www.aripritchardbell.com/blog/2025-05-31-welcome-to-pmx-ai)
-2. ✅ **The Foundation** (Published 6/09/2025): [LLM Powered Pharmacometric Workflows](https://www.aripritchardbell.com/blog/2025-06-09-llm-workflows-in-langchain)
-3. 🔄 **The Orchestration**: [Pharmacometrics × AI Part 3: The Orchestration] (planned)
+**Published Posts:**
+1. ✅ **The Vision (2025-05-31)**: Established the "why" for AI in pharmacometrics, focusing on secure, auditable, and human-in-the-loop systems
+2. ✅ **The Foundation (2025-06-09)**: Built the core single-agent framework capable of generating basic R scripts from prompts  
+3. ✅ **The Orchestration (2025-07-11)**: Introduced multi-agent architecture using DSPy and Model Context Protocol (MCP) for managing specialized AI tools
+4. ✅ **The REPL (2025-08-09)**: Built a self-correcting Read-Eval-Print-Loop that enables iterative debugging and refinement
+
+**Upcoming Topics:**
+- End-to-end walkthrough using synthetic pharmacometric data - from data generation through PopPK modeling with the full agent system
+- Building realistic synthetic data from LLM-generated templates and simulation
+- Generating realistic hybrid synthetic data from public regulatory sources (e.g., FDA SBoA)
 
 ## License & Disclaimer
 
