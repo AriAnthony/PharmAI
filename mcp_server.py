@@ -1,13 +1,13 @@
 import dspy
 from fastmcp import FastMCP
 from src.tools import TOOLS
+from dspy_utils import load_dspy_config
 
 # Initialize the server
 mcp = FastMCP(name="PharmAI", tools=TOOLS)
 
 # Initialize DSPy
-lm = dspy.LM('ollama_chat/qwen2.5-coder:7b', api_base='http://localhost:11434', api_key='', temperature=0.9)
-dspy.configure(lm=lm)
+load_dspy_config()
 
 if __name__ == "__main__":
     # Start the server

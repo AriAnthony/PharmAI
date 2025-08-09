@@ -11,7 +11,7 @@ class Task(BaseModel):
 class ExtractTasksSignature(dspy.Signature):
     """Extract analysis tasks from an analysis plan."""
     text: str = dspy.InputField(
-        description="Text content of the analysis plan document, typically extracted from a .docx file"
+        description="Text content of the analysis plan document"
     )
     task_list: list[dict[str, str]] = dspy.OutputField(
         description="List of dictionaries of tasks extracted from the analysis plan. Each list item contains a dictionary with keys 'task' and 'description' with the corresponding string values.",
@@ -41,8 +41,8 @@ def extract_tasks(filename: str) -> str:
 
 if __name__ == "__main__":
     # Initialize DSPy
-    lm = dspy.LM('ollama_chat/qwen2.5-coder:7b', api_base='http://localhost:11434', api_key='', temperature=0.9)
-    dspy.configure(lm=lm)
+    from dspy_utils import load_dspy_config
+    load_dspy_config()
 
     # Example usage
     filename = "./data/analysis_plan_arimab.docx"

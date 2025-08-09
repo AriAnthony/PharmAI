@@ -1,9 +1,9 @@
 import dspy
 from .extract_tasks_tool import extract_tasks
+from dspy_utils import load_dspy_config
 
 # Initialize DSPy
-lm = dspy.LM('ollama_chat/qwen2.5-coder:7b', api_base='http://localhost:11434', api_key='')
-dspy.configure(lm=lm)
+load_dspy_config()
 
 # Simple list of all available tools
 TOOLS = [
