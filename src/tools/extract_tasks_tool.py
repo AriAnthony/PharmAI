@@ -11,7 +11,7 @@ class Task(BaseModel):
 class ExtractTasksSignature(dspy.Signature):
     """Extract analysis tasks from an analysis plan."""
     text: str = dspy.InputField(
-        description="Text content of the analysis plan document, typically extracted from a .docx file"
+        description="Text content of the analysis plan document"
     )
     task_list: list[dict[str, str]] = dspy.OutputField(
         description="List of dictionaries of tasks extracted from the analysis plan. Each list item contains a dictionary with keys 'task' and 'description' with the corresponding string values.",

@@ -43,7 +43,6 @@ SEX = 0         // Sex (0=male, 1=female)
 BSLEASI = 25    // Baseline EASI score
 CREATCL = 100   // Creatinine clearance (mL/min)
 
-$PARAM
 // IIV parameters (variances)
 ETA_CL = 0
 ETA_V2 = 0
@@ -79,10 +78,8 @@ dxdt_GUT = -KAi * GUT;
 dxdt_CENT = KAi * GUT - (CLi/V2i) * CENT - (Q/V2i) * CENT + (Q/V3) * PERIPH;
 dxdt_PERIPH = (Q/V2i) * CENT - (Q/V3) * PERIPH;
 
-// Plasma concentration
-double CP = CENT / V2i;
-
 // PD equations - TARC (indirect response, inhibition of input)
+double CP = CENT / V2i;
 double INHTAR = IMAXTAR * CP / (IC50TAR + CP);
 dxdt_TARC = TARC0i * (1 - INHTAR) - KOUTTAR * TARC;
 
@@ -90,12 +87,14 @@ dxdt_TARC = TARC0i * (1 - INHTAR) - KOUTTAR * TARC;
 double STIMEAS = IMAXEAS * CP / (IC50EAS + CP);
 dxdt_EASI = -KOUTEAS * EASI * (1 + STIMEAS);
 
+$VARS
+double CP;
+
 $TABLE
-double CP = CENT / V2i;
-double AUC = CP;  // Will be calculated post-hoc
+CP = CENT / V2i;
 
 $CAPTURE
-CP TARC EASI WT AGE SEX BSLEASI CREATCL
+CP WT AGE SEX BSLEASI CREATCL
 '
 
 # Compile the model
@@ -181,9 +180,10 @@ events <- bind_rows(
 sim_data <- mod %>%
   data_set(events) %>%
   idata_set(pop_data) %>%
-  carry_out(amt, cmt, evid, DOSE, TRT, DOSE_GROUP) %>%
+  carry_out(amt, cmt, evid) %>%
   mrgsim(end = 12*7*24, delta = 1) %>%
-  as_tibble()
+  as_tibble() %>%
+  left_join(pop_data %>% select(ID, DOSE, TRT, DOSE_GROUP), by = "ID")
 
 # Add residual error to PK concentrations
 sim_data <- sim_data %>%

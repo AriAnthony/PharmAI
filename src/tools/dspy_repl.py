@@ -166,7 +166,7 @@ def execute_code(code: str, language: str = "python", save_only: bool = False, s
                 pass
 
 
-def repl_loop(task: str, language: str = "python", max_iterations: int = 5, debug: bool = False, existing_code: str = None) -> dspy.Prediction:
+def repl_loop(task: str, language: str = "python", max_iterations: int = 5, debug: bool = False, existing_code: str = None) -> dict:
     """Main REPL loop that iteratively generates and executes code."""
     # Configure generators with higher token limits for complex scripts
     generator = dspy.ChainOfThought(CodeGenerator, max_tokens=8000)
@@ -224,16 +224,16 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, debu
             print(f"Summary: {eval_response.result_summary}")
             execute_code(code_response.code, language, save_only=True, script_name=script_name)
             
-            return dspy.Prediction(
-                success=True,
-                iterations=iteration,
-                task=task,
-                language=language,
-                reasoning=code_response.reasoning,
-                code=code_response.code,
-                result=result,
-                result_summary=eval_response.result_summary
-            )
+            return {
+                "success": True,
+                "iterations": iteration,
+                "task": task,
+                "language": language,
+                "reasoning": code_response.reasoning,
+                "code": code_response.code,
+                "result": result,
+                "result_summary": eval_response.result_summary
+            }
 
         print(f"Not completed - {eval_response.result_summary}")
         context = f"Previous attempt failed. Code: {code_response.code}\nResult: {execution_result}\nWhat needs to be done: {eval_response.result_summary}"
@@ -243,16 +243,16 @@ def repl_loop(task: str, language: str = "python", max_iterations: int = 5, debu
     
     execute_code(code_response.code, language, save_only=True, script_name=script_name)
     
-    return dspy.Prediction(
-        success=False,
-        iterations=max_iterations,
-        task=task,
-        language=language,
-        reasoning=code_response.reasoning,
-        code=code_response.code,
-        result=result,
-        result_summary=eval_response.result_summary
-    )
+    return {
+        "success": False,
+        "iterations": max_iterations,
+        "task": task,
+        "language": language,
+        "reasoning": code_response.reasoning,
+        "code": code_response.code,
+        "result": result,
+        "result_summary": eval_response.result_summary
+    }
 
 
 def main(max_attempts: int = 5):
